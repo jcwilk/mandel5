@@ -14,8 +14,8 @@ function _init()
   camy = 0
 
   mandels = {
-    {0,0},
-    {0,0}
+    {0,0,4,1},
+    {2,0,1,4}
   }
 
   pan_cb = function()
@@ -54,19 +54,19 @@ function _update60()
     end
   else
     if btn(0) then
-      mandels[2][1]-=pan
+      mandels[1][1]-=pan
       moved=true
     end
     if btn(1) then
-      mandels[2][1]+=pan
+      mandels[1][1]+=pan
       moved=true
     end
     if btn(2) then
-      mandels[2][2]-=pan
+      mandels[1][2]-=pan
       moved=true
     end
     if btn(3) then
-      mandels[2][2]+=pan
+      mandels[1][2]+=pan
       moved=true
     end
   end
@@ -119,27 +119,52 @@ function mandel(x,y)
 
   local zx,zy,zxf,zyf
 
-  local xs,ys,orbiting
+  local xs,ys,orbiting,tempx,tempy,min_candidate
+
+  local originx,originy
 
   for i=1,max_i do
     xs = 0
     ys = 0
     orbiting=false
+    min_candidate = 10000
     for j=1,#mandels do
-      zx = ox - mandels[j][1]
-      zy = oy - mandels[j][2]
+      -- originx = mid(mandels[j][1], mandels[j][1]+mandels[j][3], ox)
+      -- originy = mid(mandels[j][2], mandels[j][2]+mandels[j][4], oy)
+      originx = mandels[j][1]
+      originy = mandels[j][2]
 
-      cx = x - mandels[j][1]
-      cy = y - mandels[j][2]
+      zx = ox - originx
+      zy = oy - originy
+
+      zx/= mandels[j][3]
+      zy/= mandels[j][4]
+
+      cx = x - originx
+      cy = y - originy
+
+      cx/= mandels[j][3]
+      cy/= mandels[j][4]
 
       zxf = zx*zx - zy*zy + cx
       zyf = (zx+zx)*zy + cy
 
+      
+
       if abs(zxf) <= 2 and abs(zyf) <= 2 then
         if zxf*zxf + zyf*zyf <= 4 then
-          xs += zxf - zx
-          ys += zyf - zy
+          tempx = zxf - zx
+          tempy = zyf - zy
+          -- tempx*= mandels[j][3]
+          -- tempy*= mandels[j][4]
+
           orbiting = true
+          val = tempx*tempx + tempy*tempy
+          if val < min_candidate then
+            xs = tempx
+            ys = tempy
+            min_candidate = val
+          end
         end
       end
     end
