@@ -9,13 +9,16 @@ function _init()
   x2 = 0
   y2 = 0
   moved=true
-  screen_width = 4
+  screen_width = 20
   camx = 0
   camy = 0
 
+  calc_distance=10
+  calc_distance_sq=calc_distance*calc_distance
+
   mandels = {
-    {0,0,4,1},
-    {2,0,1,4}
+    {0,0,8,1},
+    {5,0,1,4}
   }
 
   pan_cb = function()
@@ -55,19 +58,19 @@ function _update60()
   else
     if btn(0) then
       mandels[1][1]-=pan
-      moved=true
+      -- moved=true
     end
     if btn(1) then
       mandels[1][1]+=pan
-      moved=true
+      -- moved=true
     end
     if btn(2) then
       mandels[1][2]-=pan
-      moved=true
+      -- moved=true
     end
     if btn(3) then
       mandels[1][2]+=pan
-      moved=true
+      -- moved=true
     end
   end
 
@@ -99,9 +102,9 @@ function progressive_draw()
 
     x, y = draw_pixels[pixels_i][1], draw_pixels[pixels_i][2]
     if not moved then
-      pset(x, y, ceil(mandel(x, y)/max_i*15))
+      pset(x, y, ceil(mandel(x, y)))
     else
-      rectfill(x-1, y-1, x+1, y+1, ceil(mandel(x, y)/max_i*15))
+      rectfill(x-1, y-1, x+1, y+1, ceil(mandel(x, y)))
     end
 
     if stat(1) > 0.85 then
@@ -120,6 +123,8 @@ function mandel(x,y)
   local zx,zy,zxf,zyf
 
   local xs,ys,orbiting,tempx,tempy,min_candidate
+  local seen
+  local seen_map = {}
 
   local originx,originy
 
@@ -128,6 +133,7 @@ function mandel(x,y)
     ys = 0
     orbiting=false
     min_candidate = 10000
+    seen=false
     for j=1,#mandels do
       -- originx = mid(mandels[j][1], mandels[j][1]+mandels[j][3], ox)
       -- originy = mid(mandels[j][2], mandels[j][2]+mandels[j][4], oy)
@@ -146,38 +152,66 @@ function mandel(x,y)
       cx/= mandels[j][3]
       cy/= mandels[j][4]
 
-      zxf = zx*zx - zy*zy + cx
-      zyf = (zx+zx)*zy + cy
+      zxf = zx*zx - zy*zy
+      zyf = (zx+zx)*zy
 
-      
+      if (abs(zxf) <= calc_distance and abs(zyf) <= calc_distance) or (abs(zxf+cx) <= calc_distance and abs(zyf+cy) <= calc_distance) then
+        --if zxf*zxf + zyf*zyf <= calc_distance_sq then
+          
+          zxf+=cx
+          zyf+=cy
 
-      if abs(zxf) <= 2 and abs(zyf) <= 2 then
-        if zxf*zxf + zyf*zyf <= 4 then
           tempx = zxf - zx
           tempy = zyf - zy
           -- tempx*= mandels[j][3]
           -- tempy*= mandels[j][4]
 
           orbiting = true
-          val = tempx*tempx + tempy*tempy
+          --val = abs(tempx) + abs(tempy) -- lowest change in position
+          val = abs(zxf)+abs(zyf) -- lowest eventual magnitude
+          --val = abs(zxf)+abs(zyf) - (abs(zx) + abs(zy)) -- least magnitude gain 
           if val < min_candidate then
             xs = tempx
             ys = tempy
             min_candidate = val
+            seen = j
           end
-        end
+        --end
       end
+    end
+    if seen then
+      seen_map[seen] = true
     end
     
     if orbiting then
       ox += xs
       oy += ys
     else
-      return i
+      if seen_map[1] then
+        if seen_map[2] then
+          return 5 --dk gray
+        else
+          return 3 --dk green
+        end
+      else
+        if seen_map[2] then
+          return 2 --dk purple
+        else
+          return 0 --black
+        end
+      end
     end
   end
 
-  return 0
+  if seen_map[1] and seen_map[2] then
+    return 7 -- white
+  elseif seen_map[1] then
+    return 11 -- green
+  elseif seen_map[2] then
+    return 8 -- red
+  else
+    error_invalid_state()
+  end
 end
 
 -- function mandel(x,y)
