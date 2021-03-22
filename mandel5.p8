@@ -32,6 +32,18 @@ function _init()
   end
 
   move_cb()
+
+  enable_trace = function()
+    tracing=true
+    menuitem(2, "disable tracing", disable_trace)
+  end
+
+  disable_trace = function()
+    tracing=false
+    menuitem(2, "enable tracing", enable_trace)
+  end
+
+  disable_trace()
 end
 
 pan=.02
@@ -86,6 +98,21 @@ end
 
 function _draw()
   progressive_draw()
+
+  if tracing and not moved then
+    line(64,62,64,66,9) -- orange
+    line(62,64,66,64,9) -- orange
+    tracing_points={}
+    mandel(64,64)
+    if #tracing_points > 0 then
+      line(64,64,tracing_points[1][1],tracing_points[1][2],tracing_points[1][3]) -- yellow
+      
+      for i=2, #tracing_points do
+        line(tracing_points[i][1],tracing_points[i][2],tracing_points[i][3])
+      end
+    end
+    tracing_points=false
+  end
 end
 
 max_i = 50
@@ -149,12 +176,15 @@ function mandel(x,y)
       cx = x - originx
       cy = y - originy
 
+      -- haven't entirely figured out yet if C should be scaled or not, or if we should non-square-scale mandelbrots like this at all
       cx/= mandels[j][3]
       cy/= mandels[j][4]
 
       zxf = zx*zx - zy*zy
       zyf = (zx+zx)*zy
 
+      -- if it's within calc_distance either before or after adding C then it counts as within range
+      -- this was a mostly spurious attempt at trying to keep orbits in flight, it's probably not worth the complexity
       if (abs(zxf) <= calc_distance and abs(zyf) <= calc_distance) or (abs(zxf+cx) <= calc_distance and abs(zyf+cy) <= calc_distance) then
         --if zxf*zxf + zyf*zyf <= calc_distance_sq then
           
@@ -182,11 +212,23 @@ function mandel(x,y)
     if seen then
       seen_map[seen] = true
     end
-    
-    if orbiting then
-      ox += xs
-      oy += ys
-    else
+
+    ox += xs
+    oy += ys
+
+    if tracing_points then
+      local trace_color
+      if seen == 1 then
+        trace_color = 12
+      elseif seen == 2 then
+        trace_color = 14
+      else
+        trace_color = 7
+      end
+      add(tracing_points, {((ox-camx)/screen_width + 0.5)*128, ((oy-camy)/screen_width + 0.5)*128, trace_color})
+    end
+
+    if not orbiting then
       if seen_map[1] then
         if seen_map[2] then
           return 5 --dk gray
@@ -201,10 +243,10 @@ function mandel(x,y)
         end
       end
     end
-  end
+  end -- iterations loop
 
   if seen_map[1] and seen_map[2] then
-    return 7 -- white
+    return 6 -- light gray
   elseif seen_map[1] then
     return 11 -- green
   elseif seen_map[2] then
@@ -213,50 +255,6 @@ function mandel(x,y)
     error_invalid_state()
   end
 end
-
--- function mandel(x,y)
---   x = ((x>>>7) - 0.5) * screen_width + camx
---   y = ((y>>>7) - 0.5) * screen_width + camy
-
---   local ox = 0
---   local oy = 0
---   if x*x + y*y > (x-x2)^2 + (y-y2)^2 then
---     ox=x2
---     oy=y2
---   end
---   local zx,zy
---   local cx,cy -- center of the orbit
-
---   for i=1,max_i do
---     if ox*ox + oy*oy < (ox-x2)*(ox-x2) + (oy-y2)*(oy-y2) then
---     --if abs(ox-0) + abs(oy-0) < abs(ox-x2) + abs(oy-y2) then
---       cx=0
---       cy=0
---     else
---       cx=x2
---       cy=y2
---     end
---     zx = ox-cx
---     zy = oy-cy
-
---     zx, zy = zx*zx - zy*zy + (x-cx), (zx+zx)*zy + (y-cy)
-    
---     if abs(zx) + abs(zy) > 2 then
---       if zx*zx + zy*zy > 4 then
---         return i
---       end
---     end
-
---     ox = zx+cx
---     oy = zy+cy
---   end
-
---   if cx != 0 then
---     return 0--15
---   else
---     return 0
---   end
--- end
 
 shuffled_pixels=true
 function getpixels()
