@@ -9,7 +9,7 @@ function _init()
   x2 = 0
   y2 = 0
   moved=true
-  screen_width = 20
+  screen_width = 10
   camx = 0
   camy = 0
 
@@ -17,8 +17,8 @@ function _init()
   calc_distance_sq=calc_distance*calc_distance
 
   mandels = {
-    {0,0,8,1},
-    {5,0,1,4}
+    {-1,1,4,1},
+    {1,0,1,4}
   }
 
   pan_cb = function()
@@ -141,17 +141,17 @@ function progressive_draw()
 end
 
 function mandel(x,y)
-  x = ((x>>>7) - 0.5) * screen_width + camx
-  y = ((y>>>7) - 0.5) * screen_width + camy
+  x = ((x/128) - 0.5) * screen_width + camx
+  y = ((y/128) - 0.5) * screen_width + camy
 
   local ox = x
   local oy = y
 
   local zx,zy,zxf,zyf
 
-  local xs,ys,orbiting,tempx,tempy,min_candidate
-  local seen
-  local seen_map = {}
+  local xs,ys,orbiting,tempx,tempy,min_candidate,candidates,net_invmagsq
+  local seen_this_fn_call={false,false}
+  local seen_this_iteration={}
 
   local originx,originy
 
@@ -160,10 +160,15 @@ function mandel(x,y)
     ys = 0
     orbiting=false
     min_candidate = 10000
-    seen=false
+
+    candidates = {}
+    net_invmagsq = 0
+    
+    seen_this_iteration[1] = false
+    seen_this_iteration[2] = false
+
     for j=1,#mandels do
-      -- originx = mid(mandels[j][1], mandels[j][1]+mandels[j][3], ox)
-      -- originy = mid(mandels[j][2], mandels[j][2]+mandels[j][4], oy)
+
       originx = mandels[j][1]
       originy = mandels[j][2]
 
@@ -176,52 +181,40 @@ function mandel(x,y)
       cx = x - originx
       cy = y - originy
 
-      -- haven't entirely figured out yet if C should be scaled or not, or if we should non-square-scale mandelbrots like this at all
       cx/= mandels[j][3]
       cy/= mandels[j][4]
 
-      zxf = zx*zx - zy*zy
-      zyf = (zx+zx)*zy
+      zxsq = zx*zx - zy*zy
+      zysq = (zx+zx)*zy
 
-      -- if it's within calc_distance either before or after adding C then it counts as within range
-      -- this was a mostly spurious attempt at trying to keep orbits in flight, it's probably not worth the complexity
-      if (abs(zxf) <= calc_distance and abs(zyf) <= calc_distance) or (abs(zxf+cx) <= calc_distance and abs(zyf+cy) <= calc_distance) then
-        --if zxf*zxf + zyf*zyf <= calc_distance_sq then
-          
-          zxf+=cx
-          zyf+=cy
+      zxf = zxsq + cx
+      zyf = zysq + cy
 
+      if (abs(zxf) <= calc_distance and abs(zyf) <= calc_distance) then
+        if zxf*zxf + zyf*zyf <= calc_distance_sq then
           tempx = zxf - zx
           tempy = zyf - zy
-          -- tempx*= mandels[j][3]
-          -- tempy*= mandels[j][4]
+          tempx*= mandels[j][3]
+          tempy*= mandels[j][4]
 
           orbiting = true
-          --val = abs(tempx) + abs(tempy) -- lowest change in position
-          val = abs(zxf)+abs(zyf) -- lowest eventual magnitude
-          --val = abs(zxf)+abs(zyf) - (abs(zx) + abs(zy)) -- least magnitude gain 
-          if val < min_candidate then
-            xs = tempx
-            ys = tempy
-            min_candidate = val
-            seen = j
-          end
-        --end
-      end
-      
-      if seen then
-        seen_map[seen] = true
+
+          -- zxsq, zysq is the Z^2 part of Zf = Z^2 + C, so 1/Z^2 is kind of like 1/r^2 which seems like a reasonable way to rate how "strong" a fractal affects a point
+          invmagsq = 1/(abs(zxsq) + abs(zysq))
+          add(candidates, {tempx, tempy, invmagsq})
+          net_invmagsq+= invmagsq
+
+          seen_this_iteration[j] = true
+        end
       end
     end -- looping through mandels
 
-    ox += xs
-    oy += ys
 
     if tracing_points then
       local trace_color
-      if seen == 1 then
+      if seen_this_iteration[1] then
         trace_color = 12
-      elseif seen == 2 then
+      elseif seen_this_iteration[2] then
         trace_color = 14
       else
         trace_color = 7
@@ -230,27 +223,35 @@ function mandel(x,y)
     end
 
     if not orbiting then
-      if seen_map[1] then
-        if seen_map[2] then
+      if seen_this_fn_call[1] then
+        if seen_this_fn_call[2] then
           return 5 --dk gray
         else
           return 3 --dk green
         end
       else
-        if seen_map[2] then
+        if seen_this_fn_call[2] then
           return 2 --dk purple
         else
           return 0 --black
         end
       end
     end
+
+    foreach(candidates, function(candidate)
+      ox+= candidate[1] * candidate[3] / net_invmagsq
+      oy+= candidate[2] * candidate[3] / net_invmagsq
+    end)
+
+    seen_this_fn_call[1] = (seen_this_fn_call[1] or seen_this_iteration[1])
+    seen_this_fn_call[2] = (seen_this_fn_call[2] or seen_this_iteration[2])
   end -- iterations loop
 
-  if seen_map[1] and seen_map[2] then
+  if seen_this_fn_call[1] and seen_this_fn_call[2] then
     return 6 -- light gray
-  elseif seen_map[1] then
+  elseif seen_this_fn_call[1] then
     return 11 -- green
-  elseif seen_map[2] then
+  elseif seen_this_fn_call[2] then
     return 8 -- red
   else
     error_invalid_state()
