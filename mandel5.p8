@@ -6,19 +6,20 @@ draw_pixels = nil
 function _init()
   draw_pixels = getpixels()
   progressive_coroutine=false
-  x2 = 0
-  y2 = 0
   moved=true
-  screen_width = 10
-  camx = 0
-  camy = 0
+  screen_width = 16
+  camx = 6
+  camy = 5
 
   calc_distance=10
   calc_distance_sq=calc_distance*calc_distance
 
   mandels = {
-    {-1,1,4,1},
-    {1,0,1,4}
+    {6,9,1,1},
+    {0,0,1,1},
+    {4,1,1,1},
+    {8,3,1,1},
+    {12,7,1,1},
   }
 
   pan_cb = function()
@@ -150,8 +151,8 @@ function mandel(x,y)
   local zx,zy,zxf,zyf
 
   local xs,ys,orbiting,tempx,tempy,min_candidate,candidates,net_invmagsq
-  local seen_this_fn_call={false,false}
-  local seen_this_iteration={}
+  -- local seen_this_fn_call={false,false}
+  -- local seen_this_iteration={}
 
   local originx,originy
 
@@ -163,9 +164,9 @@ function mandel(x,y)
 
     candidates = {}
     net_invmagsq = 0
-    
-    seen_this_iteration[1] = false
-    seen_this_iteration[2] = false
+
+    -- seen_this_iteration[1] = false
+    -- seen_this_iteration[2] = false
 
     for j=1,#mandels do
 
@@ -204,7 +205,7 @@ function mandel(x,y)
           add(candidates, {tempx, tempy, invmagsq})
           net_invmagsq+= invmagsq
 
-          seen_this_iteration[j] = true
+          -- seen_this_iteration[j] = true
         end
       end
     end -- looping through mandels
@@ -223,19 +224,21 @@ function mandel(x,y)
     end
 
     if not orbiting then
-      if seen_this_fn_call[1] then
-        if seen_this_fn_call[2] then
-          return 5 --dk gray
-        else
-          return 3 --dk green
-        end
-      else
-        if seen_this_fn_call[2] then
-          return 2 --dk purple
-        else
-          return 0 --black
-        end
-      end
+      return ceil(15*i/max_i)
+
+      -- if seen_this_fn_call[1] then
+      --   if seen_this_fn_call[2] then
+      --     return 5 --dk gray
+      --   else
+      --     return 3 --dk green
+      --   end
+      -- else
+      --   if seen_this_fn_call[2] then
+      --     return 2 --dk purple
+      --   else
+      --     return 0 --black
+      --   end
+      -- end
     end
 
     foreach(candidates, function(candidate)
@@ -243,19 +246,21 @@ function mandel(x,y)
       oy+= candidate[2] * candidate[3] / net_invmagsq
     end)
 
-    seen_this_fn_call[1] = (seen_this_fn_call[1] or seen_this_iteration[1])
-    seen_this_fn_call[2] = (seen_this_fn_call[2] or seen_this_iteration[2])
+    -- seen_this_fn_call[1] = (seen_this_fn_call[1] or seen_this_iteration[1])
+    -- seen_this_fn_call[2] = (seen_this_fn_call[2] or seen_this_iteration[2])
   end -- iterations loop
 
-  if seen_this_fn_call[1] and seen_this_fn_call[2] then
-    return 6 -- light gray
-  elseif seen_this_fn_call[1] then
-    return 11 -- green
-  elseif seen_this_fn_call[2] then
-    return 8 -- red
-  else
-    error_invalid_state()
-  end
+  return 0
+
+  -- if seen_this_fn_call[1] and seen_this_fn_call[2] then
+  --   return 6 -- light gray
+  -- elseif seen_this_fn_call[1] then
+  --   return 11 -- green
+  -- elseif seen_this_fn_call[2] then
+  --   return 8 -- red
+  -- else
+  --   error_invalid_state()
+  -- end
 end
 
 shuffled_pixels=true
