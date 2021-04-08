@@ -11,7 +11,7 @@ function _init()
   camx = 6
   camy = 5
 
-  calc_distance=10
+  calc_distance=2
   calc_distance_sq=calc_distance*calc_distance
 
   mandels = {
@@ -151,10 +151,10 @@ function mandel(x,y)
   local zx,zy,zxf,zyf
 
   local xs,ys,orbiting,tempx,tempy,min_candidate,candidates,net_invmagsq
-  -- local seen_this_fn_call={false,false}
-  -- local seen_this_iteration={}
 
   local originx,originy
+
+  local diffx,diffy
 
   for i=1,max_i do
     xs = 0
@@ -164,9 +164,6 @@ function mandel(x,y)
 
     candidates = {}
     net_invmagsq = 0
-
-    -- seen_this_iteration[1] = false
-    -- seen_this_iteration[2] = false
 
     for j=1,#mandels do
 
@@ -191,25 +188,16 @@ function mandel(x,y)
       zxf = zxsq + cx
       zyf = zysq + cy
 
-      if (abs(zxf) <= calc_distance and abs(zyf) <= calc_distance) then
-        if zxf*zxf + zyf*zyf <= calc_distance_sq then
-          tempx = zxf - zx
-          tempy = zyf - zy
-          tempx*= mandels[j][3]
-          tempy*= mandels[j][4]
+      tempx = zxf - zx
+      tempy = zyf - zy
+      tempx*= mandels[j][3]
+      tempy*= mandels[j][4]
 
-          orbiting = true
-
-          -- zxsq, zysq is the Z^2 part of Zf = Z^2 + C, so 1/Z^2 is kind of like 1/r^2 which seems like a reasonable way to rate how "strong" a fractal affects a point
-          invmagsq = 1/(abs(zxsq) + abs(zysq))
-          add(candidates, {tempx, tempy, invmagsq})
-          net_invmagsq+= invmagsq
-
-          -- seen_this_iteration[j] = true
-        end
-      end
+      -- zxsq, zysq is the Z^2 part of Zf = Z^2 + C, so 1/Z^2 is kind of like 1/r^2 which seems like a reasonable way to rate how "strong" a fractal affects a point
+      invmagsq = 1/(abs(zxsq) + abs(zysq))
+      add(candidates, {tempx, tempy, invmagsq, originx, originy})
+      net_invmagsq+= invmagsq
     end -- looping through mandels
-
 
     if tracing_points then
       local trace_color
@@ -223,31 +211,42 @@ function mandel(x,y)
       add(tracing_points, {((ox-camx)/screen_width + 0.5)*128, ((oy-camy)/screen_width + 0.5)*128, trace_color})
     end
 
-    if not orbiting then
-      return ceil(15*i/max_i)
-
-      -- if seen_this_fn_call[1] then
-      --   if seen_this_fn_call[2] then
-      --     return 5 --dk gray
-      --   else
-      --     return 3 --dk green
-      --   end
-      -- else
-      --   if seen_this_fn_call[2] then
-      --     return 2 --dk purple
-      --   else
-      --     return 0 --black
-      --   end
-      -- end
-    end
-
     foreach(candidates, function(candidate)
       ox+= candidate[1] * candidate[3] / net_invmagsq
       oy+= candidate[2] * candidate[3] / net_invmagsq
     end)
 
-    -- seen_this_fn_call[1] = (seen_this_fn_call[1] or seen_this_iteration[1])
-    -- seen_this_fn_call[2] = (seen_this_fn_call[2] or seen_this_iteration[2])
+    diffx = 0
+    diffy = 0
+    foreach(candidates, function(candidate)
+      diffx=abs(candidate[4]-ox)
+      diffy=abs(candidate[5]-oy)
+      if (diffx <= calc_distance and diffy <= calc_distance) then
+        if diffx*diffx + diffy*diffy <= calc_distance_sq then
+          orbiting = true
+        end
+      end
+    end)
+
+    if not orbiting then
+      return ceil(15*i/max_i)
+    end
+    
+    -- this refers to a lot of no-longer-existing stuff but keeping it for color reference in case I want to revisit that
+    -- if seen_this_fn_call[1] then
+    --   if seen_this_fn_call[2] then
+    --     return 5 --dk gray
+    --   else
+    --     return 3 --dk green
+    --   end
+    -- else
+    --   if seen_this_fn_call[2] then
+    --     return 2 --dk purple
+    --   else
+    --     return 0 --black
+    --   end
+    -- end
+
   end -- iterations loop
 
   return 0
