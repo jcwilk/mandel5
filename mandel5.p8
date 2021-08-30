@@ -7,19 +7,19 @@ function _init()
   draw_pixels = getpixels()
   progressive_coroutine=false
   moved=true
-  screen_width = 16
-  camx = 6
-  camy = 5
+  screen_width = 8
+  camx = 2
+  camy = 2
 
   calc_distance=2
   calc_distance_sq=calc_distance*calc_distance
 
   mandels = {
-    {6,9,1,1},
+    {1,5,1,1},
     {0,0,1,1},
     {4,1,1,1},
-    {8,3,1,1},
-    {12,7,1,1},
+    --{8,3,1,1},
+    --{12,7,1,1},
   }
 
   pan_cb = function()
@@ -107,7 +107,7 @@ function _draw()
     mandel(64,64)
     if #tracing_points > 0 then
       line(64,64,tracing_points[1][1],tracing_points[1][2],tracing_points[1][3]) -- yellow
-      
+
       for i=2, #tracing_points do
         line(tracing_points[i][1],tracing_points[i][2],tracing_points[i][3])
       end
@@ -193,22 +193,26 @@ function mandel(x,y)
       tempx*= mandels[j][3]
       tempy*= mandels[j][4]
 
-      -- zxsq, zysq is the Z^2 part of Zf = Z^2 + C, so 1/Z^2 is kind of like 1/r^2 which seems like a reasonable way to rate how "strong" a fractal affects a point
-      invmagsq = 1/(abs(zxsq) + abs(zysq))
+      -- zxsq, zysq is the Z^2 part of Zf = Z^2 + C, so 1/Z^2 is kind of like 1/r^2 which seems like a reasonable way to rate how "strongly" a fractal affects a point
+      -- we can do a reasonable city-block-distance interpretation of what the magnitude of z^2 is with:
+      -- invmagsq = 1/(abs(zxsq) + abs(zysq))
+      -- but this makes ugly corners woven into everything since it's scaling with a city-block-distance diamond shape
+
+      -- well actually, magnitude of a complex number is just sqrt(x^2+y^2), so taking the magnitude of z^2 and plugging it in for r^2 in 1/r^2 gives us:
+      -- invmagsq = 1/sqrt(zxsq*zxsq + zysq*zysq)
+      -- this has some weird effects though when mandels are in certain directions from each other due to the directional nature of z^2 on the complex plane
+
+      -- but really, newton's gravity equation was designed for cartesian space so we should convert to cartesian first before using it
+      -- r = sqrt(zx^2+zy^2)
+      -- scale = 1/r^2
+      -- scale = 1/(zx^2+zy^2)
+      invmagsq = 1/(zx*zx+zy*zy)
       add(candidates, {tempx, tempy, invmagsq, originx, originy})
       net_invmagsq+= invmagsq
     end -- looping through mandels
 
     if tracing_points then
-      local trace_color
-      if seen_this_iteration[1] then
-        trace_color = 12
-      elseif seen_this_iteration[2] then
-        trace_color = 14
-      else
-        trace_color = 7
-      end
-      add(tracing_points, {((ox-camx)/screen_width + 0.5)*128, ((oy-camy)/screen_width + 0.5)*128, trace_color})
+      add(tracing_points, {((ox-camx)/screen_width + 0.5)*128, ((oy-camy)/screen_width + 0.5)*128, 6})
     end
 
     foreach(candidates, function(candidate)
@@ -231,7 +235,7 @@ function mandel(x,y)
     if not orbiting then
       return ceil(15*i/max_i)
     end
-    
+
     -- this refers to a lot of no-longer-existing stuff but keeping it for color reference in case I want to revisit that
     -- if seen_this_fn_call[1] then
     --   if seen_this_fn_call[2] then
