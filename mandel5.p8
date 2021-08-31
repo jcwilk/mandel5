@@ -141,57 +141,59 @@ function progressive_draw()
   end
 end
 
-function mandel(x,y)
-  x = ((x/128) - 0.5) * screen_width + camx
-  y = ((y/128) - 0.5) * screen_width + camy
+function mandel(screenx,screeny)
+  local x = ((screenx/128) - 0.5) * screen_width + camx
+  local y = ((screeny/128) - 0.5) * screen_width + camy
 
   local ox = x
   local oy = y
 
-  local zx,zy,zxf,zyf
+  local zx,zy,zxf,zyf,netx,nety
 
-  local xs,ys,orbiting,tempx,tempy,min_candidate,candidates,net_invmagsq
+  local magsq,net_gravity_scale,zxsq,zysq,zsqx,zsqy,gravity_scale
 
-  local originx,originy
+  local man,manx,many,manxs,manys
 
-  local diffx,diffy
+  local orbiting = true -- give it a freebie on the first one
 
   for i=1,max_i do
-    xs = 0
-    ys = 0
-    orbiting=false
-    min_candidate = 10000
+    net_gravity_scale = 0
+    netx = 0
+    nety = 0
 
-    candidates = {}
-    net_invmagsq = 0
+    if tracing_points then
+      add(tracing_points, {((ox-camx)/screen_width + 0.5)*128, ((oy-camy)/screen_width + 0.5)*128, 6})
+    end
 
     for j=1,#mandels do
+      man = mandels[j]
+      manx = man[1]
+      many = man[2]
+      manxs = man[3]
+      manys = man[4]
 
-      originx = mandels[j][1]
-      originy = mandels[j][2]
+      zx = (ox - manx) / manxs
+      zy = (oy - many) / manys
 
-      zx = ox - originx
-      zy = oy - originy
+      zxsq = zx * zx
+      zysq = zy * zy
+      magsq = zxsq + zysq
 
-      zx/= mandels[j][3]
-      zy/= mandels[j][4]
+      -- did we start within orbiting distance?
+      if magsq <= calc_distance_sq then
+        orbiting = true
+      end
 
-      cx = x - originx
-      cy = y - originy
+      -- the x and y component of the C offset from Zf = Z^2 + C
+      cx = (x - manx) / manxs
+      cy = (y - many) / manys
 
-      cx/= mandels[j][3]
-      cy/= mandels[j][4]
+      -- Z^2 + C -> (zx(r) + zy(i))^2 + cx(r) + cy(i)
 
-      zxsq = zx*zx - zy*zy
-      zysq = (zx+zx)*zy
-
-      zxf = zxsq + cx
-      zyf = zysq + cy
-
-      tempx = zxf - zx
-      tempy = zyf - zy
-      tempx*= mandels[j][3]
-      tempy*= mandels[j][4]
+      -- (r) component
+      zxf = zxsq - zysq + cx
+      -- (i) component
+      zyf = (zx + zx) * zy + cy
 
       -- zxsq, zysq is the Z^2 part of Zf = Z^2 + C, so 1/Z^2 is kind of like 1/r^2 which seems like a reasonable way to rate how "strongly" a fractal affects a point
       -- we can do a reasonable city-block-distance interpretation of what the magnitude of z^2 is with:
@@ -204,66 +206,30 @@ function mandel(x,y)
 
       -- but really, newton's gravity equation was designed for cartesian space so we should convert to cartesian first before using it
       -- r = sqrt(zx^2+zy^2)
-      -- scale = 1/r^2
-      -- scale = 1/(zx^2+zy^2)
-      invmagsq = 1/(zx*zx+zy*zy)
-      add(candidates, {tempx, tempy, invmagsq, originx, originy})
-      net_invmagsq+= invmagsq
+      -- gravity_scale = 1/r^2
+      -- gravity_scale = 1/(zx^2+zy^2)
+      -- magsq = (zx^2+zy^2)
+      gravity_scale = 1/magsq
+
+      -- set the mandel's influence to be the distance it moved the point in the mandel's space, scaled up to worldspace, scaled according to how close it is like gravity
+      netx+= (zxf - zx) * manxs * gravity_scale
+      nety+= (zyf - zy) * manys * gravity_scale
+
+      -- add up all the values used to scale so we can divide by it later to avoid having overlapping fractals having a multiplying effect
+      net_gravity_scale+= gravity_scale
     end -- looping through mandels
 
-    if tracing_points then
-      add(tracing_points, {((ox-camx)/screen_width + 0.5)*128, ((oy-camy)/screen_width + 0.5)*128, 6})
-    end
-
-    foreach(candidates, function(candidate)
-      ox+= candidate[1] * candidate[3] / net_invmagsq
-      oy+= candidate[2] * candidate[3] / net_invmagsq
-    end)
-
-    diffx = 0
-    diffy = 0
-    foreach(candidates, function(candidate)
-      diffx=abs(candidate[4]-ox)
-      diffy=abs(candidate[5]-oy)
-      if (diffx <= calc_distance and diffy <= calc_distance) then
-        if diffx*diffx + diffy*diffy <= calc_distance_sq then
-          orbiting = true
-        end
-      end
-    end)
-
+    -- this continues only when the next loop will be within range of any of the  end state is within bounds
     if not orbiting then
       return ceil(15*i/max_i)
     end
+    orbiting = false
 
-    -- this refers to a lot of no-longer-existing stuff but keeping it for color reference in case I want to revisit that
-    -- if seen_this_fn_call[1] then
-    --   if seen_this_fn_call[2] then
-    --     return 5 --dk gray
-    --   else
-    --     return 3 --dk green
-    --   end
-    -- else
-    --   if seen_this_fn_call[2] then
-    --     return 2 --dk purple
-    --   else
-    --     return 0 --black
-    --   end
-    -- end
-
+    ox+= netx / net_gravity_scale
+    oy+= nety / net_gravity_scale
   end -- iterations loop
 
   return 0
-
-  -- if seen_this_fn_call[1] and seen_this_fn_call[2] then
-  --   return 6 -- light gray
-  -- elseif seen_this_fn_call[1] then
-  --   return 11 -- green
-  -- elseif seen_this_fn_call[2] then
-  --   return 8 -- red
-  -- else
-  --   error_invalid_state()
-  -- end
 end
 
 shuffled_pixels=true
