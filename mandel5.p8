@@ -8,18 +8,18 @@ function _init()
   progressive_coroutine=false
   moved=true
   screen_width = 8
-  camx = 2
-  camy = 2
+  camx = 1.5
+  camy = 0.15
 
   calc_distance=2
   calc_distance_sq=calc_distance*calc_distance
 
   mandels = {
-    {1,5,1,1},
-    {0,0,1,1},
-    {4,1,1,1},
-    --{8,3,1,1},
-    --{12,7,1,1},
+    {1,5},
+    {0,0},
+    {4,1},
+    --{8,3},
+    --{12,7},
   }
 
   pan_cb = function()
@@ -100,23 +100,24 @@ end
 function _draw()
   progressive_draw()
 
-  if tracing and not moved then
-    line(64,62,64,66,9) -- orange
-    line(62,64,66,64,9) -- orange
-    tracing_points={}
-    mandel(64,64)
-    if #tracing_points > 0 then
-      line(64,64,tracing_points[1][1],tracing_points[1][2],tracing_points[1][3]) -- yellow
+  -- if tracing and not moved then
+  --   line(64,62,64,66,9) -- orange
+  --   line(62,64,66,64,9) -- orange
+  --   tracing_points={}
+  --   mandel(64,64)
+  --   if #tracing_points > 0 then
+  --     line(64,64,tracing_points[1][1],tracing_points[1][2],tracing_points[1][3]) -- yellow
 
-      for i=2, #tracing_points do
-        line(tracing_points[i][1],tracing_points[i][2],tracing_points[i][3])
-      end
-    end
-    tracing_points=false
-  end
+  --     for i=2, #tracing_points do
+  --       line(tracing_points[i][1],tracing_points[i][2],tracing_points[i][3])
+  --     end
+  --   end
+  --   tracing_points=false
+  -- end
 end
 
-max_i = 50
+max_i = 30
+max_orbits = 10
 pixels_i = 1
 redraw_at = pixels_i
 redraw = false
@@ -142,94 +143,87 @@ function progressive_draw()
 end
 
 function mandel(screenx,screeny)
+  local raw = mandel_raw(screenx,screeny)
+  if raw == max_i then
+    return 0
+  end
+
+  return (raw % 15)+1
+end
+
+function mandel_raw(screenx,screeny)
   local x = ((screenx/128) - 0.5) * screen_width + camx
   local y = ((screeny/128) - 0.5) * screen_width + camy
 
   local ox = x
   local oy = y
 
-  local zx,zy,zxf,zyf,netx,nety
+  -- max_i * max_orbits * mandels
+  local next_orbits = {
+  }
 
-  local magsq,net_gravity_scale,zxsq,zysq,zsqx,zsqy,gravity_scale
-
-  local man,manx,many,manxs,manys
-
-  local orbiting = true -- give it a freebie on the first one
-
-  for i=1,max_i do
-    net_gravity_scale = 0
-    netx = 0
-    nety = 0
-
-    if tracing_points then
-      add(tracing_points, {((ox-camx)/screen_width + 0.5)*128, ((oy-camy)/screen_width + 0.5)*128, 6})
+  local man
+  local orbit_distance_sq
+  for i=1,#mandels do
+    man = mandels[i]
+    orbit_distance_sq = (man[1] - x)*(man[1] - x) + (man[2] - y)*(man[2] - y)
+    if orbit_distance_sq <= calc_distance_sq then
+      add(next_orbits, {x,y,i,orbit_distance_sq})
     end
+  end
 
-    for j=1,#mandels do
-      man = mandels[j]
-      manx = man[1]
-      many = man[2]
-      manxs = man[3]
-      manys = man[4]
+  local orbit
+  local zx,zy,cx,cy,zxf,zyf
+  local o
+  for i=1,max_i do
+    -- clear the candidate orbits for the next round and iterate through the ones from the last (or 1 orbit from i=0)
+    this_orbits = next_orbits
+    next_orbits = {}
+    for j=1,#this_orbits do
+      orbit = this_orbits[j]
 
-      zx = (ox - manx) / manxs
-      zy = (oy - many) / manys
+      -- get the mandel that was paired as being close to the orbit
+      man = mandels[orbit[3]]
 
-      zxsq = zx * zx
-      zysq = zy * zy
-      magsq = zxsq + zysq
-
-      -- did we start within orbiting distance?
-      if magsq <= calc_distance_sq then
-        orbiting = true
-      end
-
-      -- the x and y component of the C offset from Zf = Z^2 + C
-      cx = (x - manx) / manxs
-      cy = (y - many) / manys
-
-      -- Z^2 + C -> (zx(r) + zy(i))^2 + cx(r) + cy(i)
+      -- offset the orbit with that mandel
+      zx = orbit[1] - man[1]
+      zy = orbit[2] - man[2]
+      cx = x - man[1]
+      cy = y - man[2]
 
       -- (r) component
-      zxf = zxsq - zysq + cx
+      zxf = zx*zx - zy*zy + cx
       -- (i) component
       zyf = (zx + zx) * zy + cy
 
-      -- zxsq, zysq is the Z^2 part of Zf = Z^2 + C, so 1/Z^2 is kind of like 1/r^2 which seems like a reasonable way to rate how "strongly" a fractal affects a point
-      -- we can do a reasonable city-block-distance interpretation of what the magnitude of z^2 is with:
-      -- invmagsq = 1/(abs(zxsq) + abs(zysq))
-      -- but this makes ugly corners woven into everything since it's scaling with a city-block-distance diamond shape
+      zxf = zxf + man[1]
+      zyf = zyf + man[2]
 
-      -- well actually, magnitude of a complex number is just sqrt(x^2+y^2), so taking the magnitude of z^2 and plugging it in for r^2 in 1/r^2 gives us:
-      -- invmagsq = 1/sqrt(zxsq*zxsq + zysq*zysq)
-      -- this has some weird effects though when mandels are in certain directions from each other due to the directional nature of z^2 on the complex plane
+      -- for each mandel which is within range of the offset orbit
+      for k=1,#mandels do
+        man = mandels[k]
+        orbit_distance_sq = (man[1] - zxf)*(man[1] - zxf) + (man[2] - zyf)*(man[2] - zyf)
+        if orbit_distance_sq <= calc_distance_sq then
+          -- add a candidate to next round's pool pairing the mandel with the offset orbit
+          o = 1
+          while o < #next_orbits and orbit_distance_sq > next_orbits[o][4] do
+            o = o + 1
+          end
 
-      -- but really, newton's gravity equation was designed for cartesian space so we should convert to cartesian first before using it
-      -- r = sqrt(zx^2+zy^2)
-      -- gravity_scale = 1/r^2
-      -- gravity_scale = 1/(zx^2+zy^2)
-      -- magsq = (zx^2+zy^2)
-      gravity_scale = 1/magsq
+          -- evict as necessary, ordered by how close the mandel is to the offset orbit
+          if o <= max_orbits then
+            add(next_orbits, {zxf,zyf,k,orbit_distance_sq}, o)
+          end
+        end
+      end
+    end -- this_orbits
 
-      -- set the mandel's influence to be the distance it moved the point in the mandel's space, scaled up to worldspace, scaled according to how close it is like gravity
-      netx+= (zxf - zx) * manxs * gravity_scale
-      nety+= (zyf - zy) * manys * gravity_scale
-
-      -- add up all the values used to scale so we can divide by it later to avoid having overlapping fractals having a multiplying effect
-      net_gravity_scale+= gravity_scale
-    end -- looping through mandels
-
-    -- this continues only when the next loop will be within range of any of the  end state is within bounds
-    if not orbiting then
-      return ceil(15*i/max_i)
+    if #next_orbits == 0 then
+      return i
     end
-    orbiting = false
+  end
 
-    ox+= netx / net_gravity_scale
-    oy+= nety / net_gravity_scale
-  end -- iterations loop
-
-  return 0
+  return max_i
 end
 
 shuffled_pixels=true
@@ -388,4 +382,3 @@ bbbbb333333366666666666666666666665556666666666666666666666666666655555555556555
 55555555555555555555555555555555555555555555555555555555555555555555555555566555555555555555555555555555555555533333333333333333
 55555555555555555555555555555555555555555555555555555555555555555555555555566555555555555555555555555555555555553333333333333333
 55555555555555555555555555555555555555555555555555555555555555555555555555566555555555555555555555555555555555555333333333333333
-
